@@ -1,0 +1,77 @@
+{
+  "name": "frameloom",
+  "version": "0.0.0",
+  "description": "Composable canvas image-sequence animations for React, with optional GSAP and Motion adapters.",
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "docs"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./react/gsap": {
+      "types": "./dist/react/gsap.d.ts",
+      "import": "./dist/react/gsap.js"
+    },
+    "./react/motion": {
+      "types": "./dist/react/motion.d.ts",
+      "import": "./dist/react/motion.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "prepublishOnly": "npm run typecheck && npm run build"
+  },
+  "peerDependencies": {
+    "@motionone/react": ">=10 || >=11",
+    "framer-motion": ">=10 || >=11 || >=12",
+    "gsap": ">=3.12",
+    "react": ">=18.2 || >=19",
+    "react-dom": ">=18.2 || >=19"
+  },
+  "peerDependenciesMeta": {
+    "@motionone/react": {
+      "optional": true
+    },
+    "framer-motion": {
+      "optional": true
+    },
+    "gsap": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "typescript-eslint": "^8.59.4"
+  },
+  "keywords": [
+    "image-sequence",
+    "canvas",
+    "react",
+    "gsap",
+    "motion",
+    "animation",
+    "scroll-animation",
+    "product-viewer"
+  ],
+  "license": "MIT"
+}
