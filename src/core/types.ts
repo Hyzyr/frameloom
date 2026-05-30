@@ -30,6 +30,8 @@ export type NormalizedPlacement = {
   anchorX?: number;
   anchorY?: number;
   rotation?: number;
+  skewX?: number;
+  skewY?: number;
   opacity?: number;
   zIndex?: number;
   blendMode?: GlobalCompositeOperation;
@@ -44,16 +46,6 @@ export type SequenceLayer = {
   initialFrame?: number;
 };
 
-export type CloudLayer = {
-  id: string;
-  type: 'clouds';
-  placement?: Partial<NormalizedPlacement>;
-  opacity?: number;
-  driftX?: number;
-  driftY?: number;
-  blur?: number;
-};
-
 export type CustomLayer = {
   id: string;
   type: 'custom';
@@ -61,7 +53,7 @@ export type CustomLayer = {
   render: (context: CanvasRenderingContext2D, time: number) => void;
 };
 
-export type FrameLayer = SequenceLayer | CloudLayer | CustomLayer;
+export type FrameLayer = SequenceLayer | CustomLayer;
 
 export type FrameLoomStageHandle = {
   setLayerFrame: (layerId: string, frame: number, options?: Partial<TweenOptions>) => void;

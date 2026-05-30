@@ -6,7 +6,7 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import type { CanvasHTMLAttributes, CSSProperties } from 'react';
+import type { CanvasHTMLAttributes, CSSProperties, ReactNode } from 'react';
 
 import { drawFrameToCanvas } from '../core/canvasRenderer';
 import { loadFramesFromUrls } from '../core/frameLoader';
@@ -37,6 +37,8 @@ export type FrameSequenceHandle = {
 export type FrameSequenceProps = Omit<CanvasHTMLAttributes<HTMLCanvasElement>, 'children'> & {
   images?: readonly string[];
   archiveUrl?: string;
+  poster?: string;
+  posterFrame?: number;
   initialFrame?: number;
   initialProgress?: number;
   objectFit?: FrameFit;
@@ -54,7 +56,11 @@ export type FrameSequenceProps = Omit<CanvasHTMLAttributes<HTMLCanvasElement>, '
   assetCache?: FrameAssetCache;
   useCache?: boolean;
   crossOrigin?: HTMLImageElement['crossOrigin'];
+  decorative?: boolean;
+  fallback?: ReactNode;
   onFrameChange?: (frame: number, preciseFrame: number) => void;
+  onPosterLoad?: (frame: LoadedFrame) => void;
+  onPosterLoadError?: (error: Error) => void;
   onLoadStart?: (start: FrameLoadStart) => void;
   onLoadProgress?: (progress: FrameLoadProgress) => void;
   onLoadComplete?: (frames: LoadedFrame[]) => void;
@@ -71,6 +77,8 @@ type FrameSequenceConfig = {
   loop: FrameLoop | boolean;
   maxDpr: number;
   onFrameChange: FrameSequenceProps['onFrameChange'];
+  onPosterLoad: FrameSequenceProps['onPosterLoad'];
+  onPosterLoadError: FrameSequenceProps['onPosterLoadError'];
   onLoadStart: FrameSequenceProps['onLoadStart'];
   onLoadComplete: FrameSequenceProps['onLoadComplete'];
   onLoadError: FrameSequenceProps['onLoadError'];
@@ -105,11 +113,31 @@ function resolveLoop(loop: FrameLoop | boolean) {
   return loop;
 }
 
+function resolvePosterUrl(
+  imageUrls: readonly string[],
+  poster: string | undefined,
+  posterFrame: number | undefined,
+  initialFrame: number | undefined,
+  initialProgress: number | undefined,
+) {
+  if (poster) return poster;
+  if (imageUrls.length === 0) return undefined;
+
+  const frame =
+    posterFrame ??
+    initialFrame ??
+    (initialProgress === undefined ? 0 : normalizeProgress(initialProgress, imageUrls.length));
+
+  return imageUrls[Math.round(normalizeFrame(frame, imageUrls.length))];
+}
+
 export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>(
   function FrameSequence(
     {
       images,
       archiveUrl,
+      poster,
+      posterFrame,
       initialFrame,
       initialProgress,
       objectFit,
@@ -127,7 +155,11 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       assetCache,
       useCache = true,
       crossOrigin,
+      decorative = false,
+      fallback,
       onFrameChange,
+      onPosterLoad,
+      onPosterLoadError,
       onLoadStart,
       onLoadProgress,
       onLoadComplete,
@@ -145,10 +177,16 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
     const playbackDirectionRef = useRef(1);
     const loadIdRef = useRef(0);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const posterAbortControllerRef = useRef<AbortController | null>(null);
     const loadingPromiseRef = useRef<Promise<LoadedFrame[]> | null>(null);
+    const posterFrameRef = useRef<LoadedFrame | null>(null);
     const resolvedFit = fit ?? objectFit ?? 'cover';
     const imageKey = images?.join('\n') ?? '';
     const imageUrls = useMemo(() => (imageKey ? imageKey.split('\n') : []), [imageKey]);
+    const posterUrl = useMemo(
+      () => resolvePosterUrl(imageUrls, poster, posterFrame, initialFrame, initialProgress),
+      [imageUrls, initialFrame, initialProgress, poster, posterFrame],
+    );
     const mergedStyle: CSSProperties = {
       display: 'block',
       width: '100%',
@@ -165,6 +203,8 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       loop,
       maxDpr,
       onFrameChange,
+      onPosterLoad,
+      onPosterLoadError,
       onLoadStart,
       onLoadComplete,
       onLoadError,
@@ -181,6 +221,8 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       loop,
       maxDpr,
       onFrameChange,
+      onPosterLoad,
+      onPosterLoadError,
       onLoadStart,
       onLoadComplete,
       onLoadError,
@@ -204,10 +246,17 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       framesRef.current = [];
     }, []);
 
+    const releasePoster = useCallback(() => {
+      posterFrameRef.current?.release();
+      posterFrameRef.current = null;
+    }, []);
+
     const renderCurrentFrame = useCallback(() => {
       const canvas = canvasRef.current;
       const frames = framesRef.current;
-      const frame = frames[Math.round(normalizeFrame(currentFrameRef.current, frames.length))];
+      const frame =
+        frames[Math.round(normalizeFrame(currentFrameRef.current, frames.length))] ??
+        posterFrameRef.current;
 
       if (!canvas || !frame) {
         return;
@@ -366,6 +415,7 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
             initialFrame ?? normalizeProgress(initialProgress ?? 0, frames.length);
 
           setFrameValue(startingFrame);
+          releasePoster();
           configRef.current.onLoadComplete?.(frames);
 
           if (autoPlay) {
@@ -406,6 +456,7 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       play,
       preloadConcurrency,
       releaseFrames,
+      releasePoster,
       setFrameValue,
       useCache,
     ]);
@@ -424,6 +475,49 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       }),
       [animateToFrame, load, pause, play, renderCurrentFrame],
     );
+
+    useEffect(() => {
+      posterAbortControllerRef.current?.abort();
+      releasePoster();
+
+      if (!posterUrl) {
+        return undefined;
+      }
+
+      const abortController = new AbortController();
+      posterAbortControllerRef.current = abortController;
+
+      loadFramesFromUrls([posterUrl], {
+        cache: useCache ? assetCache : false,
+        concurrency: 1,
+        crossOrigin,
+        signal: abortController.signal,
+      })
+        .then(([frame]) => {
+          if (abortController.signal.aborted) {
+            frame.release();
+            return;
+          }
+
+          if (framesRef.current.length > 0) {
+            frame.release();
+            return;
+          }
+
+          posterFrameRef.current = frame;
+          renderCurrentFrame();
+          configRef.current.onPosterLoad?.(frame);
+        })
+        .catch((error: unknown) => {
+          if (!isAbortError(error)) {
+            configRef.current.onPosterLoadError?.(toError(error));
+          }
+        });
+
+      return () => {
+        abortController.abort();
+      };
+    }, [assetCache, crossOrigin, posterUrl, releasePoster, renderCurrentFrame, useCache]);
 
     useEffect(() => {
       if (loading === 'manual') {
@@ -482,12 +576,25 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
 
     useEffect(() => {
       return () => {
+        posterAbortControllerRef.current?.abort();
         abortControllerRef.current?.abort();
         pause();
         releaseFrames();
+        releasePoster();
       };
-    }, [pause, releaseFrames]);
+    }, [pause, releaseFrames, releasePoster]);
 
-    return <canvas {...canvasProps} ref={canvasRef} style={mergedStyle} />;
+    const accessibilityProps: CanvasHTMLAttributes<HTMLCanvasElement> = decorative
+      ? {
+          'aria-hidden': true,
+          role: 'presentation',
+        }
+      : {};
+
+    return (
+      <canvas {...canvasProps} {...accessibilityProps} ref={canvasRef} style={mergedStyle}>
+        {fallback}
+      </canvas>
+    );
   },
 );

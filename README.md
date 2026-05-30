@@ -27,23 +27,33 @@ Why it works:
 ## Current Usage
 
 ```tsx
-import { FrameSequence } from 'frameloom/react';
+import { FrameSequence, useFrameSequenceControls } from 'frameloom/react';
 
 export function Hero() {
+  const sequence = useFrameSequenceControls();
+
   return (
-    <FrameSequence
-      images={[
-        '/frames/city-0001.webp',
-        '/frames/city-0002.webp',
-        '/frames/city-0003.webp',
-      ]}
-      initialProgress={0.5}
-      loading="lazy"
-      objectFit="cover"
-      onLoadStart={({ total }) => {
-        console.log(`Loading ${total} frames`);
-      }}
-    />
+    <>
+      <FrameSequence
+        ref={sequence.ref}
+        images={[
+          '/frames/city-0001.webp',
+          '/frames/city-0002.webp',
+          '/frames/city-0003.webp',
+        ]}
+        initialProgress={0.5}
+        loading="lazy"
+        objectFit="cover"
+        poster="/frames/city-poster.webp"
+        fallback="Animated city hero sequence"
+        onLoadStart={({ total }) => {
+          console.log(`Loading ${total} frames`);
+        }}
+      />
+      <button onClick={() => sequence.setProgress(0.75, { duration: 0.6 })}>
+        Jump to 75%
+      </button>
+    </>
   );
 }
 ```
@@ -69,6 +79,57 @@ import { createMotionAnimationDriver } from 'frameloom/react/motion';
 const animationDriver = createMotionAnimationDriver(animate);
 ```
 
+Child-based multi-layer stage:
+
+```tsx
+import { FrameStage, SequenceLayer, useFrameStageControls } from 'frameloom/react';
+
+export function HeroStage() {
+  const stage = useFrameStageControls();
+
+  return (
+    <>
+      <FrameStage ref={stage.ref} fallback="Layered animated hero">
+        <SequenceLayer
+          id="tv"
+          images={['/frames/tv-0001.png', '/frames/tv-0002.png']}
+          placement={{ x: 0, y: 0, width: 1, height: 1, zIndex: 0 }}
+          fit="cover"
+        />
+        <SequenceLayer
+          id="mascot"
+          images={['/frames/mascot-0001.png', '/frames/mascot-0002.png']}
+          placement={{
+            x: 0.68,
+            y: 0.42,
+            width: 0.22,
+            height: 0.38,
+            anchorX: 0.5,
+            anchorY: 0.5,
+            rotation: -0.08,
+            skewX: 0.04,
+            zIndex: 1,
+          }}
+          fit="contain"
+        />
+      </FrameStage>
+      <button onClick={() => stage.playLayer('mascot', 24)}>Play mascot</button>
+      <button
+        onClick={() =>
+          stage.setLayerTransform(
+            'mascot',
+            { x: 0.58, y: 0.48, rotation: 0.04, skewX: -0.03 },
+            { duration: 0.5 },
+          )
+        }
+      >
+        Move mascot
+      </button>
+    </>
+  );
+}
+```
+
 ## Documentation
 
 - [Architecture](docs/ARCHITECTURE.md)
@@ -83,6 +144,6 @@ const animationDriver = createMotionAnimationDriver(animate);
 
 ## Current Status
 
-This repo now contains the first runtime slices: URL-array frame loading, a shared URL asset cache, cancellable preload/lazy/manual loading modes, a DPR-aware canvas renderer with `cover`, `contain`, and `fill`, and a React `FrameSequence` component with imperative `load`, `setFrame`, `setProgress`, `play`, `pause`, and `render` controls.
+This repo now contains the first runtime slices: URL-array frame loading, a shared URL asset cache, cancellable preload/lazy/manual loading modes, poster/initial-frame rendering, a DPR-aware canvas renderer with `cover`, `contain`, and `fill`, a React `FrameSequence`, ergonomic imperative control hooks, and a React `FrameStage` for config or child-based URL-array image-sequence layers on one canvas. Transparent PNG/WebP layers are supported through normal canvas compositing.
 
-Still planned: ZIP archive loading through `archiveUrl`, poster frame support, `createImageBitmap` resource lifecycle, tests, examples, CI, and the multi-layer `FrameStage`, `SequenceLayer`, and `CloudLayer` APIs.
+Still planned: ZIP archive loading through `archiveUrl`, `createImageBitmap` resource lifecycle, tests, examples, CI, and advanced packaging/release hardening.

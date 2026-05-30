@@ -12,7 +12,8 @@ Framework-agnostic TypeScript modules:
 - canvas sizing and DPR management
 - draw algorithms for `cover`, `contain`, and `fill`
 - layer placement in normalized canvas coordinates
-- shared render scheduler
+- deterministic stage rendering for configured layers
+- shared stage playback scheduler
 
 Core must not import React, GSAP, Motion, or browser-specific UI framework code.
 
@@ -34,10 +35,12 @@ The active frame is just a number, so every animation library can drive it.
 React components wrap the core engine:
 
 - `FrameSequence`: single image sequence component
-- `FrameStage`: one canvas with multiple registered layers
-- `SequenceLayer`: child component that registers a sequence layer
-- `CloudLayer`: generated or image-based cloud layer
+- `FrameStage`: one canvas with multiple configured or child-registered layers
+- `SequenceLayer`: child component that registers a general image-sequence layer
+- custom draw layers for advanced generated or procedural content
 - hooks for pointer, scroll, and imperative control
+
+The current `FrameStage` implementation supports config-array sequence/custom layers and child-registered `SequenceLayer` URL arrays on top of the same core stage renderer. The stage is intentionally general-purpose: users can compose TV screens, mascots, product overlays, transparent PNG sprite exports, or any other image-sequence layer in one canvas.
 
 ## 4. Optional Entry Points
 

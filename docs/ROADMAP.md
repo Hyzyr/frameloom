@@ -16,11 +16,11 @@
 
 ## Phase 3: Multi-Layer Stage
 
-- Implement `FrameStage`.
-- Implement child registration via React context.
-- Implement typed `SequenceLayer` and `CloudLayer`.
-- Add normalized placement, rotation, opacity, zIndex, and blend modes.
-- Add layer-specific imperative controls.
+- Implement `FrameStage` config-array API. **Partial: core stage renderer and config-driven React `FrameStage` exist.**
+- Implement child registration via React context. **Implemented for sequence layers.**
+- Implement typed general `SequenceLayer`. **Implemented for URL arrays.**
+- Add normalized placement, rotation, skew, opacity, zIndex, and blend modes. **Implemented for config and child sequence layers.**
+- Add layer-specific imperative controls. **Implemented for frame/progress/playback and transform controls.**
 
 ## Phase 4: Advanced Loading
 

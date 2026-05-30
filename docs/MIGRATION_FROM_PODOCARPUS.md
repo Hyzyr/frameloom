@@ -28,6 +28,6 @@ Package names:
 - `FrameSequence`: single sequence component
 - `FrameStage`: multi-layer canvas component
 - `SequenceLayer`: layer inside a stage
-- `CloudLayer`: generated or image-sequence clouds inside a stage
+- custom/generated effects should use general sequence or custom layers instead of a specialized cloud API
 
 Keep `ImageSequence` as a compatibility alias for one major version if useful.

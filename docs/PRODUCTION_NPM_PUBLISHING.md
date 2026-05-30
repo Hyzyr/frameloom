@@ -16,17 +16,19 @@ The repository currently contains:
 - URL-array frame loader
 - shared URL asset cache
 - cancellable preload/lazy/manual loading modes
+- poster/initial frame preloader support
 - DPR-aware canvas renderer with `cover`, `contain`, and `fill`
 - React `FrameSequence` component for image URL arrays
+- imperative React control hooks for `FrameSequence` and `FrameStage`
+- core stage renderer
+- config-driven React `FrameStage` for URL-array sequence layers and custom draw layers
+- child-based React `SequenceLayer` for URL-array sequence layers
+- imperative stage transform controls for placement, opacity, and transform updates
 - architecture, roadmap, performance, migration, and multi-layer canvas planning docs
 
 The repository does not currently contain:
 
-- `FrameStage` React component
-- `SequenceLayer` React component
-- `CloudLayer` React component
 - ZIP archive loader
-- poster/initial frame preloader support
 - `createImageBitmap` resource lifecycle
 - tests
 - example apps
@@ -36,17 +38,29 @@ The repository does not currently contain:
 
 ## Multi-Layer Canvas Status
 
-The target API is documented but not implemented yet:
+The child and config-driven stage APIs are partially implemented for general image-sequence layers:
+
+```tsx
+<FrameStage>
+  <SequenceLayer
+    id="mascot"
+    images={['/frames/mascot-0001.png', '/frames/mascot-0002.png']}
+    placement={{ x: 0, y: 0, width: 1, height: 1 }}
+    fit="cover"
+  />
+</FrameStage>
+```
+
+ZIP-backed child layers are documented but not implemented yet:
 
 ```tsx
 <FrameStage>
   <SequenceLayer id="city" archiveUrl="/frames/city.zip" />
-  <SequenceLayer id="clouds" images={cloudFrames} />
-  <CloudLayer id="ambient-clouds" />
+  <SequenceLayer id="mascot" images={mascotFrames} />
 </FrameStage>
 ```
 
-The current source only defines related TypeScript types in `src/core/types.ts`. The React entry point explicitly marks `FrameSequence`, `FrameStage`, `SequenceLayer`, and `CloudLayer` as planned exports.
+The current source exports `FrameStage` and `SequenceLayer` from `frameloom/react`. Specialized layer components are intentionally not part of the current API direction; users should compose general image-sequence or custom layers.
 
 ## Preloader Status
 
@@ -61,7 +75,7 @@ The performance docs describe the intended loading behavior:
 - loading-progress callbacks
 - resource release for `ImageBitmap.close()`
 
-Current runtime support includes URL-array loading, `preloadConcurrency`, `onLoadStart`, `onLoadProgress`, `onLoadComplete`, `onLoadError`, `AbortController` cancellation, `preload`/`lazy`/`manual` modes, and a shared URL asset cache. ZIP loading, `createImageBitmap`, poster frames, and advanced cache eviction remain planned.
+Current runtime support includes URL-array loading, `preloadConcurrency`, `onLoadStart`, `onLoadProgress`, `onLoadComplete`, `onLoadError`, poster rendering, `AbortController` cancellation, `preload`/`lazy`/`manual` modes, and a shared URL asset cache. ZIP loading, `createImageBitmap`, and advanced cache eviction remain planned.
 
 ## Production Implementation Plan
 
@@ -111,11 +125,11 @@ Acceptance criteria:
 Goal: implement the planned one-canvas, many-layer API.
 
 1. Add `src/core/stage.ts` for layer registry, scheduling, and render ordering.
-2. Add normalized placement math for `x`, `y`, `width`, `height`, anchors, rotation, opacity, blend mode, and z-index.
+2. Add normalized placement math for `x`, `y`, `width`, `height`, anchors, rotation, skew, opacity, blend mode, and z-index.
 3. Add `FrameStage` React component with a single canvas and shared render loop.
 4. Add React context for child layer registration.
 5. Add `SequenceLayer` for image sequences inside a stage.
-6. Add `CloudLayer` for generated ambient clouds.
+6. Add advanced examples for transparent PNG overlays, mascots, product layers, and generated custom layers.
 7. Support config-array layers through `<FrameStage layers={layers} />`.
 8. Add imperative stage controls: `setLayerFrame`, `setLayerProgress`, `playLayer`, `pauseLayer`, and `render`.
 
