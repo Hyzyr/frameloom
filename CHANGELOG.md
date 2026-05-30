@@ -22,6 +22,12 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - New utility `releaseArchiveCache(url?)` — revokes blob URLs and clears cache entries. Exported from `frameloom`.
 - `fflate` production dependency (~5KB gzipped, ESM, tree-shakeable) for ZIP extraction.
 
+### Documentation
+
+- Added complete public API reference covering every `FrameloomScene`, `Frameloom`, and `FrameSequence` prop, all placement fields, callbacks, fit/loading/loop modes, hooks, and low-level exports.
+- Added archive, memory, performance, and security guide documenting ZIP requirements, cache cleanup, blob URL lifecycle, CORS behavior, and production recommendations.
+- Linked the new docs from the README and documented automatic cache cleanup plus `releaseArchiveCache()` for low-level users.
+
 ### Changed
 
 - `images` on `FrameStageSequenceLayerConfig` / `SequenceLayerProps` is now **optional** (previously required). Provide either `images` or `archiveUrl`.

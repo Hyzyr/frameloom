@@ -73,6 +73,12 @@ Or load frames from a ZIP archive:
 | `placement` | Normalized `0–1` position and size relative to the parent canvas. |
 | `archiveUrl` | URL to a `.zip` file — frameloom downloads and extracts frames automatically. |
 
+## Documentation
+
+- [Complete API reference](./docs/API_REFERENCE.md) — every public prop, placement field, callback, hook method, and type.
+- [Archive, memory, performance, and security guide](./docs/ARCHIVES_AND_MEMORY.md) — ZIP requirements, cache cleanup, blob URL lifecycle, CORS, and production tips.
+- [Changelog](./CHANGELOG.md) — user-facing release history and migration notes.
+
 ---
 
 ## Placement guide
@@ -92,6 +98,7 @@ placement={{
   skewY: 0,      // vertical skew in radians
   opacity: 1,    // 0 = invisible, 1 = fully opaque
   zIndex: 0,     // draw order — higher numbers draw on top
+  blendMode: 'source-over', // optional canvas globalCompositeOperation
 }}
 ```
 
@@ -321,8 +328,9 @@ Archive requirements:
 - Supported formats inside the ZIP: **JPEG, PNG, WebP, GIF, AVIF**
 - Frames are sorted **alphabetically by filename** — name them with zero-padded numbers: `frame-0001.webp`, `frame-0002.webp`, …
 - macOS `__MACOSX/` metadata directories are ignored automatically
+- ZIP contents are read client-side only. Frameloom filters image files and never writes extracted paths to disk.
 
-Track download and extraction progress:
+Track image decoding progress after archive extraction:
 
 ```tsx
 <FrameSequence
@@ -332,6 +340,25 @@ Track download and extraction progress:
   onLoadComplete={(frames) => console.log('Ready:', frames.length)}
 />
 ```
+
+For true ZIP download/extraction progress, use the low-level `loadFramesFromArchive(url, { onProgress })` API. See [Archive, memory, performance, and security](./docs/ARCHIVES_AND_MEMORY.md).
+
+### Cache cleanup and memory behavior
+
+`FrameloomScene` and `FrameSequence` automatically release decoded frames and archive blob URLs on unmount or when a new load replaces old frames.
+
+For low-level use of `loadFramesFromArchive()`, call `releaseArchiveCache(url)` when you no longer need a cached archive:
+
+```ts
+import { loadFramesFromArchive, releaseArchiveCache } from 'frameloom';
+
+const urls = await loadFramesFromArchive('/hero.zip');
+
+// Later, when your custom renderer no longer needs these URLs:
+releaseArchiveCache('/hero.zip');
+```
+
+See [Archive, memory, performance, and security](./docs/ARCHIVES_AND_MEMORY.md) for details.
 
 ---
 
@@ -490,6 +517,6 @@ import { createGsapAnimationDriver } from 'frameloom/react/gsap';
 import { createMotionAnimationDriver } from 'frameloom/react/motion';
 
 // Low-level core (framework-agnostic)
-import { loadFramesFromArchive, loadFramesFromUrls } from 'frameloom';
+import { loadFramesFromArchive, releaseArchiveCache, loadFramesFromUrls } from 'frameloom';
 ```
 
