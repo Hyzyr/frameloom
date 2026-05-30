@@ -2,34 +2,34 @@
 
 Composable canvas image-sequence animations for React.
 
-`frameloom` is planned as a lightweight, production-oriented npm package for frame-by-frame hero scenes, product turntables, scroll stories, camera-scrubbed 3D exports, and layered canvas compositions.
+`frameloom` renders one or more image sequences on a performant canvas. Use it for product animations, hero scenes, transparent PNG/WebP overlays, mascots, TV/video-frame effects, scroll-driven scenes, and layered compositions.
 
-## Name
+## Install
 
-Recommended package name: `frameloom`.
+```bash
+npm install frameloom
+```
 
-Why it works:
+```bash
+pnpm add frameloom
+```
 
-- short and memorable
-- explains the core idea: weaving frames into motion
-- broad enough for future multi-layer scenes, not only image sequences
-- currently available on npm at the time this repo was created
+```bash
+yarn add frameloom
+```
 
-## Design Principles
+React is a peer dependency:
 
-- Core rendering should not require GSAP, Motion, or Framer Motion.
-- Animation libraries should be optional adapters.
-- React should be a wrapper over a framework-agnostic canvas engine.
-- Multiple animated layers should share one canvas and one render loop.
-- High-frequency pointer scrubbing should use instant frame updates plus external smoothing.
-- Smooth programmatic transitions should use the selected animation driver.
+```bash
+npm install react react-dom
+```
 
-## Current Usage
+## Single image sequence
 
 ```tsx
 import { FrameSequence, useFrameSequenceControls } from 'frameloom/react';
 
-export function Hero() {
+export function HeroSequence() {
   const sequence = useFrameSequenceControls();
 
   return (
@@ -37,88 +37,74 @@ export function Hero() {
       <FrameSequence
         ref={sequence.ref}
         images={[
-          '/frames/city-0001.webp',
-          '/frames/city-0002.webp',
-          '/frames/city-0003.webp',
+          '/frames/hero-0001.webp',
+          '/frames/hero-0002.webp',
+          '/frames/hero-0003.webp',
         ]}
-        initialProgress={0.5}
         loading="lazy"
         objectFit="cover"
-        poster="/frames/city-poster.webp"
-        fallback="Animated city hero sequence"
-        onLoadStart={({ total }) => {
-          console.log(`Loading ${total} frames`);
-        }}
+        poster="/frames/hero-poster.webp"
+        fallback="Animated hero sequence"
       />
-      <button onClick={() => sequence.setProgress(0.75, { duration: 0.6 })}>
-        Jump to 75%
+
+      <button onClick={() => sequence.setProgress(0)}>
+        First frame
+      </button>
+      <button onClick={() => sequence.setProgress(1, { duration: 0.8 })}>
+        Last frame
       </button>
     </>
   );
 }
 ```
 
-With GSAP:
+## Layered canvas stage
 
-```tsx
-import gsap from 'gsap';
-import { createGsapAnimationDriver } from 'frameloom/react/gsap';
-import { FrameSequence } from 'frameloom/react';
-
-const animationDriver = createGsapAnimationDriver(gsap);
-
-<FrameSequence animationDriver={animationDriver} duration={0.6} ease="power3.out" />;
-```
-
-With Motion:
-
-```tsx
-import { animate } from 'framer-motion';
-import { createMotionAnimationDriver } from 'frameloom/react/motion';
-
-const animationDriver = createMotionAnimationDriver(animate);
-```
-
-Child-based multi-layer stage:
+Use `FrameStage` when multiple transparent image sequences should share one canvas and one render loop.
 
 ```tsx
 import { FrameStage, SequenceLayer, useFrameStageControls } from 'frameloom/react';
 
-export function HeroStage() {
+export function LayeredScene() {
   const stage = useFrameStageControls();
 
   return (
     <>
-      <FrameStage ref={stage.ref} fallback="Layered animated hero">
+      <FrameStage ref={stage.ref} fallback="Layered animated scene">
         <SequenceLayer
-          id="tv"
-          images={['/frames/tv-0001.png', '/frames/tv-0002.png']}
+          id="background"
+          images={['/scene/bg-0001.webp', '/scene/bg-0002.webp']}
           placement={{ x: 0, y: 0, width: 1, height: 1, zIndex: 0 }}
           fit="cover"
         />
+
         <SequenceLayer
           id="mascot"
-          images={['/frames/mascot-0001.png', '/frames/mascot-0002.png']}
+          images={['/scene/mascot-0001.png', '/scene/mascot-0002.png']}
           placement={{
-            x: 0.68,
-            y: 0.42,
-            width: 0.22,
+            x: 0.62,
+            y: 0.48,
+            width: 0.24,
             height: 0.38,
             anchorX: 0.5,
             anchorY: 0.5,
             rotation: -0.08,
-            skewX: 0.04,
+            skewX: 0.03,
             zIndex: 1,
           }}
           fit="contain"
         />
       </FrameStage>
-      <button onClick={() => stage.playLayer('mascot', 24)}>Play mascot</button>
+
+      <button onClick={() => stage.playLayer('mascot', 24)}>
+        Play mascot
+      </button>
+
       <button
         onClick={() =>
           stage.setLayerTransform(
             'mascot',
-            { x: 0.58, y: 0.48, rotation: 0.04, skewX: -0.03 },
+            { x: 0.5, y: 0.52, rotation: 0.05, skewX: -0.02 },
             { duration: 0.5 },
           )
         }
@@ -130,20 +116,106 @@ export function HeroStage() {
 }
 ```
 
-## Documentation
+`placement` values are normalized to the parent canvas:
 
-- [Architecture](docs/ARCHITECTURE.md)
-- [Animation Drivers](docs/ANIMATION_DRIVERS.md)
-- [Implementation Status](docs/IMPLEMENTATION_STATUS.md)
-- [Multi-Layer Canvas](docs/MULTI_LAYER_CANVAS.md)
-- [Performance Plan](docs/PERFORMANCE.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Migration From Podocarpus](docs/MIGRATION_FROM_PODOCARPUS.md)
-- [Product Checklist](docs/PRODUCT_CHECKLIST.md)
-- [Production and npm Publishing Guide](docs/PRODUCTION_NPM_PUBLISHING.md)
+| Field | Description |
+| --- | --- |
+| `x`, `y` | Layer position from `0` to `1` |
+| `width`, `height` | Layer size from `0` to `1` |
+| `anchorX`, `anchorY` | Transform origin, defaults to top-left |
+| `rotation` | Rotation in radians |
+| `skewX`, `skewY` | Skew in radians |
+| `zIndex` | Layer draw order |
 
-## Current Status
+## Imperative controls
 
-This repo now contains the first runtime slices: URL-array frame loading, a shared URL asset cache, cancellable preload/lazy/manual loading modes, poster/initial-frame rendering, a DPR-aware canvas renderer with `cover`, `contain`, and `fill`, a React `FrameSequence`, ergonomic imperative control hooks, and a React `FrameStage` for config or child-based URL-array image-sequence layers on one canvas. Transparent PNG/WebP layers are supported through normal canvas compositing.
+The hook APIs return a React ref plus safe control methods.
 
-Still planned: ZIP archive loading through `archiveUrl`, `createImageBitmap` resource lifecycle, tests, examples, CI, and advanced packaging/release hardening.
+```tsx
+const sequence = useFrameSequenceControls();
+
+sequence.load();
+sequence.setFrame(12);
+sequence.setProgress(0.5, { duration: 0.4 });
+sequence.render();
+```
+
+```tsx
+const stage = useFrameStageControls();
+
+stage.load();
+stage.setLayerFrame('mascot', 10);
+stage.setLayerProgress('mascot', 0.75, { duration: 0.4 });
+stage.setLayerPlacement('mascot', { x: 0.5, y: 0.5 });
+stage.setLayerOpacity('mascot', 0.8);
+stage.playLayer('mascot', 24);
+stage.pauseLayer('mascot');
+stage.render();
+```
+
+## Loading modes
+
+```tsx
+<FrameSequence images={frames} loading="preload" />
+<FrameSequence images={frames} loading="lazy" />
+<FrameSequence images={frames} loading="manual" />
+```
+
+- `preload`: starts loading immediately.
+- `lazy`: loads when the canvas enters the viewport.
+- `manual`: waits until you call `load()`.
+
+## Optional animation adapters
+
+The core package does not require GSAP, Motion, or Framer Motion. Install only the adapter you need.
+
+### GSAP
+
+```bash
+npm install gsap
+```
+
+```tsx
+import gsap from 'gsap';
+import { FrameSequence } from 'frameloom/react';
+import { createGsapAnimationDriver } from 'frameloom/react/gsap';
+
+const animationDriver = createGsapAnimationDriver(gsap);
+
+<FrameSequence
+  images={frames}
+  animationDriver={animationDriver}
+  duration={0.6}
+  ease="power3.out"
+/>;
+```
+
+### Motion / Framer Motion
+
+```bash
+npm install framer-motion
+```
+
+```tsx
+import { animate } from 'framer-motion';
+import { createMotionAnimationDriver } from 'frameloom/react/motion';
+
+const animationDriver = createMotionAnimationDriver(animate);
+```
+
+## Frame recommendations
+
+- Use WebP or optimized PNG sequences.
+- Use transparent PNG/WebP for overlay layers.
+- Keep all frames in a sequence the same dimensions.
+- Prefer CDN-hosted assets with long cache headers.
+- Start with `loading="lazy"` for below-the-fold scenes.
+- Use one `FrameStage` instead of many canvases for layered scenes.
+
+## Exports
+
+```ts
+import { FrameSequence, FrameStage, SequenceLayer } from 'frameloom/react';
+import { createGsapAnimationDriver } from 'frameloom/react/gsap';
+import { createMotionAnimationDriver } from 'frameloom/react/motion';
+```
