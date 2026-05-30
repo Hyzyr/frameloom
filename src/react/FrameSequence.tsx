@@ -9,6 +9,7 @@ import {
 import type { CanvasHTMLAttributes, CSSProperties, ReactNode } from 'react';
 
 import { drawFrameToCanvas } from '../core/canvasRenderer';
+import { loadFramesFromArchive } from '../core/archiveLoader';
 import { loadFramesFromUrls } from '../core/frameLoader';
 import { nativeAnimationDriver } from '../core/nativeDriver';
 import type { FrameAssetCache } from '../core/assetCache';
@@ -36,6 +37,11 @@ export type FrameSequenceHandle = {
 
 export type FrameSequenceProps = Omit<CanvasHTMLAttributes<HTMLCanvasElement>, 'children'> & {
   images?: readonly string[];
+  /**
+   * URL of a `.zip` archive containing the frame images.
+   * Frames are sorted alphabetically by filename inside the archive.
+   * Takes precedence over `images` when both are provided.
+   */
   archiveUrl?: string;
   poster?: string;
   posterFrame?: number;
@@ -105,6 +111,15 @@ function toError(error: unknown) {
 
 function isAbortError(error: unknown) {
   return error instanceof Error && error.name === 'AbortError';
+}
+
+function createAbortError(): Error {
+  if (typeof DOMException !== 'undefined') {
+    return new DOMException('Frame loading was aborted.', 'AbortError');
+  }
+  const err = new Error('Frame loading was aborted.');
+  err.name = 'AbortError';
+  return err;
 }
 
 function resolveLoop(loop: FrameLoop | boolean) {
@@ -368,7 +383,7 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       stopTween();
     }, [stopPlayback, stopTween]);
 
-    const load = useCallback(() => {
+    const load = useCallback(async () => {
       const loadId = loadIdRef.current + 1;
       loadIdRef.current = loadId;
       const abortController = new AbortController();
@@ -378,12 +393,61 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
       pause();
       releaseFrames();
 
-      if (archiveUrl && imageUrls.length === 0) {
-        const error = new Error(
-          'FrameSequence archiveUrl support is planned but not implemented yet. Use images for now.',
-        );
-        configRef.current.onLoadError?.(error);
-        return Promise.reject(error);
+      if (archiveUrl) {
+        let archiveImageUrls: string[];
+
+        try {
+          archiveImageUrls = await loadFramesFromArchive(archiveUrl, {
+            signal: abortController.signal,
+            useCache: useCache,
+          });
+        } catch (error: unknown) {
+          if (!isAbortError(error)) {
+            configRef.current.onLoadError?.(toError(error));
+          }
+          throw error;
+        }
+
+        if (abortController.signal.aborted) {
+          throw createAbortError();
+        }
+
+        const promise2 = loadFramesFromUrls(archiveImageUrls, {
+          cache: false,
+          concurrency: preloadConcurrency,
+          crossOrigin,
+          signal: abortController.signal,
+          onStart: (start) => configRef.current.onLoadStart?.(start),
+          onProgress: (progress) => configRef.current.onLoadProgress?.(progress),
+        });
+
+        loadingPromiseRef.current = promise2;
+        return promise2
+          .then((frames) => {
+            if (loadIdRef.current !== loadId || abortController.signal.aborted) {
+              frames.forEach((frame) => frame.release());
+              return [];
+            }
+
+            framesRef.current = frames;
+            const startingFrame =
+              initialFrame ?? normalizeProgress(initialProgress ?? 0, frames.length);
+
+            setFrameValue(startingFrame);
+            releasePoster();
+            configRef.current.onLoadComplete?.(frames);
+
+            if (autoPlay) play(fps);
+            return frames;
+          })
+          .catch((error: unknown) => {
+            if (!isAbortError(error)) configRef.current.onLoadError?.(toError(error));
+            throw error;
+          })
+          .finally(() => {
+            if (loadingPromiseRef.current === promise2) loadingPromiseRef.current = null;
+            if (abortControllerRef.current === abortController) abortControllerRef.current = null;
+          });
       }
 
       if (imageUrls.length === 0) {

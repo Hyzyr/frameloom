@@ -11,6 +11,28 @@ Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
+## [2.0.0] — 2026-05-31
+
+### Added
+
+- **Branded API** — `FrameloomScene` (alias for `FrameStage`), `Frameloom` (alias for `SequenceLayer`), `useFrameloomSceneControls` (alias for `useFrameStageControls`), `useFrameloomControls` (alias for `useFrameSequenceControls`) exported from `frameloom/react`.
+- **Branded type aliases** — `FrameloomSceneHandle`, `FrameloomSceneProps`, `FrameloomProps`, `FrameloomSceneControls`, `FrameloomControls`.
+- **ZIP archive loading** via `archiveUrl` prop on both `Frameloom` (`SequenceLayer`) and `FrameSequence`. Pass a URL to a `.zip` file; frameloom downloads, extracts, sorts, and plays the frames automatically.
+- New core utility `loadFramesFromArchive(url, options)` — streaming fetch, fflate async unzip, blob URL generation, in-memory cache, AbortSignal, sorted frame extraction. Exported from `frameloom`.
+- New utility `releaseArchiveCache(url?)` — revokes blob URLs and clears cache entries. Exported from `frameloom`.
+- `fflate` production dependency (~5KB gzipped, ESM, tree-shakeable) for ZIP extraction.
+
+### Changed
+
+- `images` on `FrameStageSequenceLayerConfig` / `SequenceLayerProps` is now **optional** (previously required). Provide either `images` or `archiveUrl`.
+- Branded names (`FrameloomScene`, `Frameloom`) are now the **recommended** API in all docs and examples. Original names still fully exported and supported.
+
+### Backward compatible
+
+- `FrameStage`, `SequenceLayer`, `useFrameStageControls`, `useFrameSequenceControls` — all still exported with identical behavior.
+
+---
+
 ## [1.3.0] — 2026-05-30
 
 ### Added

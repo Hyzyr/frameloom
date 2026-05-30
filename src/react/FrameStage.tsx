@@ -9,6 +9,7 @@ import {
 } from 'react';
 import type { CanvasHTMLAttributes, CSSProperties, ReactNode } from 'react';
 
+import { loadFramesFromArchive } from '../core/archiveLoader';
 import { loadFramesFromUrls } from '../core/frameLoader';
 import { nativeAnimationDriver } from '../core/nativeDriver';
 import { renderStageToCanvas, resolveStagePlacement } from '../core/stage';
@@ -31,7 +32,13 @@ export type FrameStageLayerTransform = StagePlacement;
 export type FrameStageSequenceLayerConfig = {
   id: string;
   type: 'sequence';
-  images: readonly string[];
+  images?: readonly string[];
+  /**
+   * URL of a `.zip` archive containing the frame images.
+   * Frames are sorted alphabetically by filename inside the archive.
+   * Takes precedence over `images` when both are provided.
+   */
+  archiveUrl?: string;
   placement?: StagePlacement;
   fit?: FrameFit;
   initialFrame?: number;
@@ -687,11 +694,38 @@ export const FrameStage = forwardRef<FrameStageHandle, FrameStageProps>(function
 
     const loadedLayerIds = await Promise.all(
       sequenceLayers.map(async (layer) => {
+        let imageUrls: readonly string[];
+
+        // Resolve image URLs: archiveUrl takes precedence over images array
+        if (layer.archiveUrl) {
+          try {
+            imageUrls = await loadFramesFromArchive(layer.archiveUrl, {
+              signal: abortController.signal,
+              useCache,
+            });
+          } catch (error: unknown) {
+            if (!isAbortError(error)) {
+              configRef.current.onLoadError?.(toError(error), layer.id);
+            }
+            throw error;
+          }
+        } else {
+          imageUrls = layer.images ?? [];
+        }
+
+        if (imageUrls.length === 0) {
+          const error = new Error(
+            `frameloom: layer "${layer.id}" requires either archiveUrl or images with at least one URL.`,
+          );
+          configRef.current.onLoadError?.(error, layer.id);
+          throw error;
+        }
+
         let frames: LoadedFrame[];
 
         try {
-          frames = await loadFramesFromUrls(layer.images, {
-            cache: useCache ? assetCache : false,
+          frames = await loadFramesFromUrls(imageUrls, {
+            cache: layer.archiveUrl ? false : (useCache ? assetCache : false),
             concurrency: layer.preloadConcurrency,
             crossOrigin: layer.crossOrigin,
             signal: abortController.signal,

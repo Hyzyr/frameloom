@@ -8,6 +8,7 @@ export type SequenceLayerProps = Omit<FrameStageSequenceLayerConfig, 'type'>;
 export function SequenceLayer({
   id,
   images,
+  archiveUrl,
   placement,
   fit,
   initialFrame,
@@ -21,6 +22,7 @@ export function SequenceLayer({
       id,
       type: 'sequence',
       images,
+      archiveUrl,
       placement,
       fit,
       initialFrame,
@@ -30,6 +32,7 @@ export function SequenceLayer({
       crossOrigin,
     }),
     [
+      archiveUrl,
       crossOrigin,
       fit,
       id,
