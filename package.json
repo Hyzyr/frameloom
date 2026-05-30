@@ -1,6 +1,6 @@
 {
   "name": "frameloom",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "Composable canvas image-sequence animations for React, with optional GSAP and Motion adapters.",
   "type": "module",
   "sideEffects": false,
