@@ -1,9 +1,10 @@
 {
   "name": "frameloom",
-  "version": "0.0.0",
+  "version": "1.2.0",
   "description": "Composable canvas image-sequence animations for React, with optional GSAP and Motion adapters.",
   "type": "module",
   "sideEffects": false,
+  "license": "MIT",
   "files": [
     "dist",
     "README.md",
@@ -72,6 +73,5 @@
     "animation",
     "scroll-animation",
     "product-viewer"
-  ],
-  "license": "MIT"
+  ]
 }
