@@ -581,6 +581,8 @@ export const FrameStage = forwardRef<FrameStageHandle, FrameStageProps>(function
 
   const tickPlayback = useCallback(
     (time: number) => {
+      let didChange = false;
+
       statesRef.current.forEach((state, layerId) => {
         if (!state.playing) {
           return;
@@ -624,9 +626,13 @@ export const FrameStage = forwardRef<FrameStageHandle, FrameStageProps>(function
         }
 
         state.frame = nextFrame;
+        didChange = true;
       });
 
-      render();
+      // Only repaint when at least one layer advanced its frame
+      if (didChange) {
+        render();
+      }
 
       if (hasPlayingLayers()) {
         playbackFrameRef.current = requestAnimationFrame(tickPlayback);
