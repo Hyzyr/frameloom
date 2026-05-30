@@ -9,7 +9,7 @@ import {
 } from 'react';
 import type { CanvasHTMLAttributes, CSSProperties, ReactNode } from 'react';
 
-import { loadFramesFromArchive } from '../core/archiveLoader';
+import { loadFramesFromArchive, releaseArchiveCache } from '../core/archiveLoader';
 import { loadFramesFromUrls } from '../core/frameLoader';
 import { nativeAnimationDriver } from '../core/nativeDriver';
 import { renderStageToCanvas, resolveStagePlacement } from '../core/stage';
@@ -251,6 +251,8 @@ export const FrameStage = forwardRef<FrameStageHandle, FrameStageProps>(function
   const stageLayersRef = useRef<StageLayer[]>([]);
   const playbackFrameRef = useRef(0);
   const loadIdRef = useRef(0);
+  /** Archive URLs loaded with useCache=true — released on next load() or unmount. */
+  const cachedArchiveUrlsRef = useRef(new Set<string>());
   const [childLayers, setChildLayers] = useState<FrameStageLayerConfig[]>([]);
   const layerConfigs = useMemo(() => mergeLayerConfigs(layers, childLayers), [childLayers, layers]);
   const mergedStyle: CSSProperties = {
@@ -317,6 +319,10 @@ export const FrameStage = forwardRef<FrameStageHandle, FrameStageProps>(function
       frames.forEach((frame) => frame.release());
     });
     loadedFramesRef.current.clear();
+
+    // Decrement ref count for every archive we cached — revokes blob URLs at 0
+    cachedArchiveUrlsRef.current.forEach((url) => releaseArchiveCache(url));
+    cachedArchiveUrlsRef.current.clear();
   }, []);
 
   const stopLayerTween = useCallback((layerId: string) => {
@@ -715,6 +721,11 @@ export const FrameStage = forwardRef<FrameStageHandle, FrameStageProps>(function
             }
             throw error;
           }
+
+          // Track cached archive URL so releaseFrames() can decrement the ref on cleanup
+          if (useCache) {
+            cachedArchiveUrlsRef.current.add(layer.archiveUrl);
+          }
         } else {
           imageUrls = layer.images ?? [];
         }
@@ -744,11 +755,21 @@ export const FrameStage = forwardRef<FrameStageHandle, FrameStageProps>(function
             },
           });
         } catch (error: unknown) {
+          // Uncached archive blob URLs are one-shot — revoke them on error to prevent leaks
+          if (layer.archiveUrl && !useCache) {
+            (imageUrls as string[]).forEach((u) => URL.revokeObjectURL(u));
+          }
+
           if (!isAbortError(error)) {
             configRef.current.onLoadError?.(toError(error), layer.id);
           }
 
           throw error;
+        }
+
+        // Uncached archive blob URLs: images are decoded and in memory — revoke immediately
+        if (layer.archiveUrl && !useCache) {
+          (imageUrls as string[]).forEach((u) => URL.revokeObjectURL(u));
         }
 
         if (loadIdRef.current !== loadId || abortController.signal.aborted) {

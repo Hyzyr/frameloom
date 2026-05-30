@@ -166,26 +166,44 @@ function unzipAsync(
 
 // ─── Archive-level blob URL cache ────────────────────────────────────────────
 
-const archiveBlobCache = new Map<string, Promise<string[]>>();
+type ArchiveCacheEntry = {
+  promise: Promise<string[]>;
+  /** Number of active holders (components that loaded this archive with useCache). */
+  refs: number;
+};
+
+const archiveBlobCache = new Map<string, ArchiveCacheEntry>();
 
 /**
- * Revoke blob URLs cached from a specific archive URL, or all cached entries.
- * Call this when you no longer need the frames from that archive.
+ * Decrement the reference count for a cached archive URL.
+ * When the count reaches zero the blob URLs are revoked and the entry is removed.
+ *
+ * Pass `url` to release a single archive, or omit it to release everything.
+ *
+ * Note: if you acquired the same archive URL multiple times (e.g. two components)
+ * you must call `releaseArchiveCache(url)` once per acquisition — only the last
+ * release actually revokes the blob URLs.
  */
 export function releaseArchiveCache(url?: string): void {
   const evict = (key: string) => {
     const entry = archiveBlobCache.get(key);
-    if (entry) {
-      archiveBlobCache.delete(key);
-      // Revoke the blob URLs after the promise resolves (if it ever did)
-      entry.then((urls) => urls.forEach((u) => URL.revokeObjectURL(u))).catch(() => undefined);
-    }
+    if (!entry) return;
+
+    entry.refs = Math.max(0, entry.refs - 1);
+
+    // Still referenced by other holders — do not revoke yet
+    if (entry.refs > 0) return;
+
+    archiveBlobCache.delete(key);
+    entry.promise
+      .then((urls) => urls.forEach((u) => URL.revokeObjectURL(u)))
+      .catch(() => undefined);
   };
 
   if (url) {
     evict(url);
   } else {
-    for (const key of archiveBlobCache.keys()) {
+    for (const key of [...archiveBlobCache.keys()]) {
       evict(key);
     }
   }
@@ -224,8 +242,12 @@ export async function loadFramesFromArchive(
 
   // Serve from cache when no progress callback is requested
   if (useCache && !onProgress) {
-    const cached = archiveBlobCache.get(url);
-    if (cached) return cached;
+    const existing = archiveBlobCache.get(url);
+    if (existing) {
+      // Increment ref: this caller is now a holder of these blob URLs
+      existing.refs++;
+      return existing.promise;
+    }
   }
 
   const promise = (async (): Promise<string[]> => {
@@ -271,7 +293,9 @@ export async function loadFramesFromArchive(
   })();
 
   if (useCache && !onProgress) {
-    archiveBlobCache.set(url, promise);
+    const entry: ArchiveCacheEntry = { promise, refs: 1 };
+    archiveBlobCache.set(url, entry);
+    // Remove entry on failure so a retry can attempt fresh download
     promise.catch(() => archiveBlobCache.delete(url));
   }
 

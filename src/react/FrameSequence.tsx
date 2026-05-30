@@ -9,7 +9,7 @@ import {
 import type { CanvasHTMLAttributes, CSSProperties, ReactNode } from 'react';
 
 import { drawFrameToCanvas } from '../core/canvasRenderer';
-import { loadFramesFromArchive } from '../core/archiveLoader';
+import { loadFramesFromArchive, releaseArchiveCache } from '../core/archiveLoader';
 import { loadFramesFromUrls } from '../core/frameLoader';
 import { nativeAnimationDriver } from '../core/nativeDriver';
 import type { FrameAssetCache } from '../core/assetCache';
@@ -195,6 +195,8 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
     const posterAbortControllerRef = useRef<AbortController | null>(null);
     const loadingPromiseRef = useRef<Promise<LoadedFrame[]> | null>(null);
     const posterFrameRef = useRef<LoadedFrame | null>(null);
+    /** The archive URL currently held in the cache (null = none or uncached). */
+    const cachedArchiveUrlRef = useRef<string | null>(null);
     const resolvedFit = fit ?? objectFit ?? 'cover';
     const imageKey = images?.join('\n') ?? '';
     const imageUrls = useMemo(() => (imageKey ? imageKey.split('\n') : []), [imageKey]);
@@ -259,6 +261,12 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
     const releaseFrames = useCallback(() => {
       framesRef.current.forEach((frame) => frame.release());
       framesRef.current = [];
+
+      // Decrement archive blob URL ref count — revokes at zero
+      if (cachedArchiveUrlRef.current !== null) {
+        releaseArchiveCache(cachedArchiveUrlRef.current);
+        cachedArchiveUrlRef.current = null;
+      }
     }, []);
 
     const releasePoster = useCallback(() => {
@@ -408,7 +416,19 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
           throw error;
         }
 
+        // Track the cache ref so releaseFrames() can decrement it on cleanup
+        if (useCache) {
+          cachedArchiveUrlRef.current = archiveUrl;
+        }
+
         if (abortController.signal.aborted) {
+          // Aborted after archive resolved — must release the ref we just acquired
+          if (useCache) {
+            releaseArchiveCache(archiveUrl);
+            cachedArchiveUrlRef.current = null;
+          } else {
+            archiveImageUrls.forEach((u) => URL.revokeObjectURL(u));
+          }
           throw createAbortError();
         }
 
@@ -424,6 +444,11 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
         loadingPromiseRef.current = promise2;
         return promise2
           .then((frames) => {
+            // Uncached blob URLs: images decoded — safe to revoke now
+            if (!useCache) {
+              archiveImageUrls.forEach((u) => URL.revokeObjectURL(u));
+            }
+
             if (loadIdRef.current !== loadId || abortController.signal.aborted) {
               frames.forEach((frame) => frame.release());
               return [];
@@ -441,6 +466,10 @@ export const FrameSequence = forwardRef<FrameSequenceHandle, FrameSequenceProps>
             return frames;
           })
           .catch((error: unknown) => {
+            // Uncached blob URLs: revoke on failure (they weren't consumed)
+            if (!useCache) {
+              archiveImageUrls.forEach((u) => URL.revokeObjectURL(u));
+            }
             if (!isAbortError(error)) configRef.current.onLoadError?.(toError(error));
             throw error;
           })
